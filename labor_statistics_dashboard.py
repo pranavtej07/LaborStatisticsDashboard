@@ -210,16 +210,14 @@ civ_labor_force_filtered.loc[:,'colorcode']=['#FF0000' if x == True else "#0000F
 
 st.subheader('Number Of Civilian Employees Over A Period')
 
-st.line_chart(civ_labor_force_filtered[['yearMonth','value']], 
+st.area_chart(civ_labor_force_filtered[['yearMonth','value']], 
                 x="yearMonth", 
                 y="value",x_label='Month',
                 # color='latest',
                 y_label='Number Of Laborers',use_container_width=True)
 
 
-st.subheader('Data Pulled From API : Civilian Labor Force (Seasonally Adjusted)')
 
-st.dataframe(civ_labor_force_filtered[['yearMonth','latest','value']],use_container_width=True)
 
 
 # chart 2: Output Per Hour - Non-farm Business Productivity
@@ -230,6 +228,16 @@ non_farm_prod_df = AssignYM(non_farm_prod_df)
 
 non_farm_prod_filtered_df = non_farm_prod_df.loc[(non_farm_prod_df['date']>=pd.Timestamp(start_date))&
                                                 (non_farm_prod_df['date']<=pd.Timestamp(end_date))]
+
+
+# chart 3: Output Per Hour - Total Nonfarm Employment
+
+non_farm_employment_df = pd.read_csv(folder_name+'/'+'CES0000000001.csv')
+
+non_farm_employment_df = AssignYM(non_farm_employment_df)
+
+non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employment_df['date']>=pd.Timestamp(start_date))&
+                                                (non_farm_employment_df['date']<=pd.Timestamp(end_date))]
 
 
 col1,col2 = st.columns(2)
@@ -245,24 +253,12 @@ with col1:
 
 with col2:
 
-    st.subheader('Non-farm Business Productivity')
+    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
 
-    st.dataframe(non_farm_prod_filtered_df[["year","period","periodName","latest","value","footnotes"]])
-
-
-# chart 3: Output Per Hour - Total Nonfarm Employment
-
-non_farm_employment_df = pd.read_csv(folder_name+'/'+'CES0000000001.csv')
-
-non_farm_employment_df = AssignYM(non_farm_employment_df)
-
-non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_employment_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
-
-st.bar_chart(non_farm_employment_filtered_df, 
+    st.bar_chart(non_farm_employment_filtered_df, 
              x="yearMonth", y="value", color="year")
+
+
 
 # chart 4: Output Per Hour - Civilian Employment
 
@@ -275,8 +271,8 @@ civ_employment_filtered_df = civ_employment_df.loc[(civ_employment_df['date']>=p
 
 st.subheader('Civilian Employement - Seasonally Adjusted')
 
-st.bar_chart(civ_employment_filtered_df, 
-             x="yearMonth", y="value",color='year')
+st.bar_chart(civ_employment_filtered_df,horizontal=True, 
+             x="yearMonth", y="value",color='year',use_container_width=True)
 
 # chart 5: Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted
 
@@ -289,8 +285,8 @@ hourly_earnings_prod_emp_filtered_df = hourly_earnings_prod_emp_df.loc[(hourly_e
 
 st.subheader('Total Private Average Hourly Earnings - Seasonally Adjusted')
 
-st.bar_chart(hourly_earnings_prod_emp_filtered_df, 
-             x="yearMonth", y="value",color='year')
+st.bar_chart(hourly_earnings_prod_emp_filtered_df, horizontal=True,
+             x="yearMonth", y="value",color='year',use_container_width=True)
 
 
 # chart 6: 
@@ -307,6 +303,16 @@ non_farm_bu_cost_filtered_df = non_farm_bu_cost_df.loc[(non_farm_bu_cost_df['dat
 fig = px.pie(non_farm_bu_cost_filtered_df, names='periodName', 
     values='value', title='Total Private Average Hourly Earnings')
 
+
 # Display the chart in Streamlit
 st.plotly_chart(fig)
+
+
+st.subheader('Data Pulled From API : Civilian Labor Force (Seasonally Adjusted)')
+
+st.dataframe(civ_labor_force_filtered[['yearMonth','latest','value']],use_container_width=True)
+
+st.subheader('Non-farm Business Productivity')
+
+st.dataframe(non_farm_prod_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
 
