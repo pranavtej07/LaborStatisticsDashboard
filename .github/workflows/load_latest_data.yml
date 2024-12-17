@@ -2,7 +2,7 @@ name: Deploy and Process CSVs
 
 on:
   schedule:
-    - cron: "30 13 15 * *" # Runs at midnight on the first day of every month
+    - cron: "30 13 15 * *" # Workflow will run on the first day of each month at 13:30 UTC (8:30 EST)
   push:
     branches:
       - main
