@@ -2,7 +2,7 @@ name: Deploy and Process CSVs
 
 on:
   schedule:
-    - cron: "0 0 1 * *" # Runs at midnight on the first day of every month
+    - cron: "30 13 15 * *" # Runs at midnight on the first day of every month
   push:
     branches:
       - main
