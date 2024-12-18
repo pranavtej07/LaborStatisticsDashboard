@@ -20,12 +20,13 @@ DATA_SERIES = [
     "PRS85006112",  # Nonfarm Business Unit Labor Costs
 ]
 
-# ======= DATA FETCHING ======= #
+# ======= DATA FETCH FUNCTIONS ======= #
 def fetch_initial_data():
     """
     Fetches historical data for all data series from the API
     and saves it in the local storage folder as CSV files.
     """
+    # Determine the data range
     prev_year = (datetime.now() - relativedelta(months=12)).year
 
     # API request setup
@@ -94,8 +95,8 @@ def prepare_data(df, start_date, end_date):
     filtered_data = df[(df['date'] >= pd.Timestamp(start_date)) & (df['date'] <= pd.Timestamp(end_date))]
     return filtered_data.reset_index(drop=True)
 
-# ======= DASHBOARD VISUALIZATION ======= #
-def generate_chart(data, chart_type, title, x, y, color=None, **kwargs):
+# ======= DASHBOARD LAYOUT ======= #
+def create_chart(data, chart_type, title, x, y, color=None, **kwargs):
     """
     Generates a Plotly chart based on the specified chart type and configuration.
     """
@@ -118,24 +119,24 @@ def generate_chart(data, chart_type, title, x, y, color=None, **kwargs):
     return fig
 
 
-def render_chart_and_data(df, chart_type, title, x, y, raw_data_title, color=None, color_sequence=None, **kwargs):
+def display_chart_and_data(df, chart_type, title, x, y, raw_data_title, color=None, color_sequence=None, **kwargs):
     """
-    Renders both a chart and its corresponding raw data table.
+    Displays a chart and its corresponding raw data table.
     """
-    fig = generate_chart(df, chart_type, title, x, y, color=color, color_discrete_sequence=color_sequence, **kwargs)
+    fig = create_chart(df, chart_type, title, x, y, color=color, color_discrete_sequence=color_sequence, **kwargs)
     st.plotly_chart(fig, use_container_width=True)
     st.write(f"### Raw Data: {raw_data_title}")
     st.dataframe(df)
 
-# ======= MAIN APPLICATION ======= #
+# ======= MAIN DASHBOARD ======= #
 if __name__ == "__main__":
-    # Fetch initial data if the storage folder doesn't exist
+    # Pull data if the storage folder doesn't exist
     if not os.path.exists(STORAGE_FOLDER):
         fetch_initial_data()
 
     # Set up the Streamlit page
-    st.set_page_config(page_title="Labor Statistics Dashboard", layout="wide")
-    st.title("Labor Statistics Dashboard")
+    st.set_page_config(page_title="Dashboard of Labor Statistics", layout="wide")
+    st.title("Dashboard of Labor Statistics")
 
     # Sidebar: Filter by Date Range
     st.sidebar.header('Filter by Date Range')
@@ -152,33 +153,33 @@ if __name__ == "__main__":
         "Labor Costs": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/PRS85006112.csv"), start_date, end_date),
     }
 
-    # Render charts and raw data
-    render_chart_and_data(
+    # Display charts and their corresponding raw data
+    display_chart_and_data(
         datasets["Unemployment Rate"], "line", "Unemployment Rate Over Time", "date", "value", "Unemployment Rate",
         color_sequence=["blue"], labels={"value": "Rate", "date": "Date"}, hover_data={"value": ":.2f"}
     )
 
-    render_chart_and_data(
+    display_chart_and_data(
         datasets["Non-Farm Employment"], "bar", "Non-Farm Employment Distribution", "date", "value", "Non-Farm Employment",
         color="periodName", color_sequence=px.colors.qualitative.Pastel, labels={"value": "Employment Count", "date": "Date"}
     )
 
-    render_chart_and_data(
+    display_chart_and_data(
         datasets["Productivity"], "area", "Productivity Over Time", "date", "value", "Non-Farm Productivity",
         color_sequence=["green"], labels={"value": "Productivity", "date": "Date"}
     )
 
-    render_chart_and_data(
+    display_chart_and_data(
         datasets["Civilian Employment"], "scatter", "Civilian Employment Trends", "date", "value", "Civilian Employment",
         color_sequence=["purple"], labels={"value": "Employment Count", "date": "Date"}, hover_data={"value": ":.2f"}
     )
 
-    render_chart_and_data(
+    display_chart_and_data(
         datasets["Hourly Earnings"], "line", "Hourly Earnings Trends", "date", "value", "Hourly Earnings",
         color_sequence=["orange"], labels={"value": "Earnings (USD)", "date": "Date"}, hover_data={"value": ":.2f"}
     )
 
-    render_chart_and_data(
+    display_chart_and_data(
         datasets["Labor Costs"], "bar", "Labor Costs", "value", "yearMonth", "Labor Costs",
         color_sequence=px.colors.sequential.Blues, labels={"value": "Cost (USD)", "yearMonth": "Period"}, orientation="h"
     )
