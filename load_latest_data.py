@@ -1,6 +1,4 @@
-from labor_statistics_dashboard import folder_name,LaborStatisticsDataPull
+from labor_statistics_dashboard import API_KEY,STORAGE_FOLDER,URI_API,DATA_SERIES,fetch_initial_data,update_data
 
 
-pull_data = LaborStatisticsDataPull(name='dev')
-
-pull_data.pullLatestData()
+update_data()

@@ -1,8 +1,0 @@
-year,period,periodName,latest,value,footnotes
-2024,Q03,3rd Quarter,True,2.2,[{}]
-2024,Q02,2nd Quarter,,2.1,"[{'code': 'R', 'text': 'revised'}]"
-2024,Q01,1st Quarter,,0.7,"[{'code': 'R', 'text': 'revised'}]"
-2023,Q04,4th Quarter,,3.1,"[{'code': 'R', 'text': 'revised'}]"
-2023,Q03,3rd Quarter,,3.8,"[{'code': 'R', 'text': 'revised'}]"
-2023,Q02,2nd Quarter,,3.7,"[{'code': 'R', 'text': 'revised'}]"
-2023,Q01,1st Quarter,,0.3,"[{'code': 'R', 'text': 'revised'}]"

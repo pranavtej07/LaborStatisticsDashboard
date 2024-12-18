@@ -1,343 +1,184 @@
-# dependecies
-
+import pandas as pd
+import os
+import streamlit as st
+import plotly.express as px
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import requests
 import json
-import pandas as pd
-import os
-import streamlit as st
-import numpy as np
-import plotly.express as px
 
-# configs 
+# ======= CONFIGURATIONS ======= #
+API_KEY = '93ee8e3a1d66428298ca51eceb0fca71'
+STORAGE_FOLDER = "dashboard_files"  # Directory to store fetched data
+URI_API = 'https://api.bls.gov/publicAPI/v2/timeseries/data/'  # API endpoint
+DATA_SERIES = [
+    "LNS14000000",  # Unemployment Rate
+    "CES0000000001",  # Non-Farm Employment
+    "PRS85006092",  # Output Per Hour - Non-Farm Business Productivity
+    "LNS12000000",  # Civilian Employment
+    "CES0500000008",  # Total Private Average Hourly Earnings
+    "PRS85006112",  # Nonfarm Business Unit Labor Costs
+]
 
-folder_name = "labor_statistics_api_data"
+# ======= DATA FETCHING ======= #
+def fetch_initial_data():
+    """
+    Fetches historical data for all data series from the API
+    and saves it in the local storage folder as CSV files.
+    """
+    prev_year = (datetime.now() - relativedelta(months=12)).year
 
+    # API request setup
+    headers = {'Content-type': 'application/json'}
+    payload = json.dumps({
+        "seriesid": DATA_SERIES,
+        "startyear": str(prev_year),
+        "endyear": datetime.now().year,
+        "registrationkey": API_KEY
+    })
 
-# main object
+    # Send the API request and process the response
+    response = requests.post(URI_API, data=payload, headers=headers)
+    data = json.loads(response.text)
 
-class LaborStatisticsDataPull():
+    # Ensure the storage folder exists
+    if not os.path.exists(STORAGE_FOLDER):
+        os.makedirs(STORAGE_FOLDER)
 
-    api_desc_list = [
-        {
-            'name':"Civilian Labor Force (Seasonally Adjusted)",
-            'code':"LNS11000000"
-        },
-        {
-            'name':"Output Per Hour - Non-farm Business Productivity",
-            'code':"PRS85006092"
-        },
-        {
-            "name":"Total Nonfarm Employment - Seasonally Adjusted",
-            "code":"CES0000000001"
-        },
-        {
-            "name":"Civilian Employment (Seasonally Adjusted)",
-            "code": "LNS12000000"
-        },
-        {
-            "name":"Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted",
-            'code': "CES0500000008"
-        },
-        {
-            "name":"Nonfarm Business Unit Labor Costs",
-            'code': "PRS85006112"
-        },
-
-    ]
-
-    
-
-    def __init__(self,name):
-
-        self.name = name   
-
-        self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list] 
-
-        
+    # Save each data series as a CSV
+    for series in DATA_SERIES:
+        series_data = [x for x in data['Results']['series'] if x['seriesID'] == series]
+        if series_data:
+            df = pd.DataFrame.from_dict(series_data[0]['data'], orient='columns')
+            df.to_csv(f"{STORAGE_FOLDER}/{series}.csv", index=False)
 
 
-    def pullDataFull(self):
+def update_data():
+    """
+    Fetches the latest data for all series and updates the corresponding CSV files.
+    """
+    headers = {'Content-type': 'application/json'}
+    payload = json.dumps({"seriesid": DATA_SERIES, 'latest': True, "registrationkey": API_KEY})
 
-        'fetches all data for api in last year'
+    # Send the API request and process the response
+    response = requests.post(URI_API, data=payload, headers=headers)
+    data = json.loads(response.text)
 
+    for series in DATA_SERIES:
+        series_data = [x for x in data['Results']['series'] if x['seriesID'] == series]
+        if series_data:
+            new_data = pd.DataFrame.from_dict(series_data[0]['data'], orient='columns')
+            old_data = pd.read_csv(f"{STORAGE_FOLDER}/{series}.csv")
 
-        # create a folder if it doesnot exist
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
+            # Combine old and new data, removing duplicates
+            combined_data = pd.concat([old_data, new_data], ignore_index=True)
+            combined_data = combined_data.drop_duplicates(subset=['year', 'periodName'])
 
-        # finding timestamp for last year 
+            # Save the updated dataset
+            combined_data.to_csv(f"{STORAGE_FOLDER}/{series}.csv", index=False)
 
-        this_year = datetime.now().year
-
-        prev_year = (datetime.now() - relativedelta(months=12)).year
-
-
-        # api call        
-        
-        headers = {'Content-type': 'application/json'}
-        data = json.dumps({"seriesid": self.series_ids,"startyear":str(prev_year),"endyear":this_year,
-        "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
-        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/', data=data, headers=headers)
-
-        # creating dataframe
-
-        json_data = json.loads(p.text)
-
-        seried_tables={}
-
-        for _id in self.series_ids:
-
-            data_obj = [x for x in json_data['Results']['series'] if x['seriesID'] ==_id]
-
-            df_table = pd.DataFrame.from_dict(data_obj[0]['data'],orient='columns')
-
-            seried_tables[_id]=df_table
-
-            df_table.to_csv(folder_name+'/'+_id+'.csv',index=False)
-    
-
-        return {'status':"Success"}
-    
-
-    def pullLatestData(self):
-
-        # api call        
-        headers = {'Content-type': 'application/json'}
-        data = json.dumps({"seriesid": self.series_ids,'latest':True,
-        "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
-        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/', 
-                    data=data, headers=headers)
-
-        json_data = json.loads(p.text)
-
-        for _id in self.series_ids:
-
-            data_obj = [x for x in json_data['Results']['series'] if x['seriesID'] ==_id]
-
-            orig_table = pd.read_csv(folder_name+'/'+_id+'.csv')
-
-            df_table = pd.DataFrame.from_dict(data_obj[0]['data'],orient='columns')
-
-            # Append df2 to df1
-            combined_df = pd.concat([orig_table, df_table], ignore_index=True)
-
-            combined_df.loc[:,'year']=combined_df['year'].astype(str)
-
-            # Remove duplicates based on 'col1' and 'col2'
-            unique_df = combined_df.drop_duplicates(subset=['year','periodName'])
-
-            # print(unique_df.sort_values(by=['year','periodName']))
-
-            unique_df.to_csv(folder_name+'/'+_id+'.csv',index=False)
-
-            print('updating the data ....')
-
-        
-        return {"status":"Incremental Successful"}
-
-api_data_pull = LaborStatisticsDataPull(name='laborstats')
-
-if os.path.exists(folder_name) == False:
-
-    api_data_pull.pullDataFull()
-
-# Dashboard Layer
-
-def AssignYM(df):
-
-    # Mapping of month names to month numbers
-    month_map = {
-        'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06',
-        'July': '07', 'August': '08', 'September': '09', 'October': '10', 
-        'November': '11', 'December': '12',
-        "1st Quarter":'03','2nd Quarter':"06","3rd Quarter":"09","4th Quarter":"12"
+# ======= DATA PROCESSING ======= #
+def prepare_data(df, start_date, end_date):
+    """
+    Filters and formats the dataset for visualization within a given date range.
+    """
+    month_mapping = {
+        'January': '01', 'February': '02', 'March': '03', 'April': '04',
+        'May': '05', 'June': '06', 'July': '07', 'August': '08',
+        'September': '09', 'October': '10', 'November': '11', 'December': '12',
+        "1st Quarter": '03', '2nd Quarter': "06", '3rd Quarter': "09", '4th Quarter': "12"
     }
 
-    # Create yearMonth column by combining 'year' and 'month' (mapped to month number)
-    df['yearMonth'] = df['year'].astype(str) + '-' + df['periodName'].map(month_map)
-
-    # print(df['yearMonth'])
-
-    df['date']=pd.to_datetime(df['yearMonth'])
-
-    return df
-
-# Set the title of the dashboard
-
-st.set_page_config(page_title="Labor Statistics - Dashboard", layout="wide")
-
-st.title("U.S Beaureau Of Labor Statistics - Dashboard")
-
-# sidebar to select dates
-
-st.sidebar.header('Filter By Date Range')
-
-start_date = st.sidebar.date_input("Start Date", 
-            value=datetime.now() - relativedelta(months=15), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
-
-end_date = st.sidebar.date_input("End Date", 
-            value=datetime.now(), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
-
-# # Add a button to trigger the reload
-# if st.sidebar.button('Pull Latest Data',):    
-
-#     api_data_pull.pullLatestData()
-
-#     # This will cause the app to rerun
-#     st.rerun()
-
-
-# chart 1 : Civilian Labor Force
-
-civ_labor_force = pd.read_csv(folder_name+'/'+'LNS11000000.csv')
-
-civ_labor_force = AssignYM(civ_labor_force)
-
-civ_labor_force_filtered = civ_labor_force.loc[(civ_labor_force['date']>=pd.Timestamp(start_date))&
-                                                (civ_labor_force['date']<=pd.Timestamp(end_date))]
-
-civ_labor_force_filtered.reset_index(inplace=True,drop=True)
-
-
-# civ_labor_force_filtered.loc[:,'colorcode']=['#FF0000' if x == True else "#0000FF" for x in civ_labor_force_filtered['latest']]
-
-# print(civ_labor_force.loc[:,'color'])
-
-
-
-st.subheader('Number Of Civilian Employees Over A Period')
-
-st.area_chart(civ_labor_force_filtered[['yearMonth','value']], 
-                x="yearMonth", 
-                y="value",x_label='Month',
-                color='#ffaa00',
-                # color='latest',
-                y_label='Number Of Laborers',use_container_width=True)
-
-
-
-
-
-# chart 2: Output Per Hour - Non-farm Business Productivity
-
-non_farm_prod_df = pd.read_csv(folder_name+'/'+'PRS85006092.csv')
-
-non_farm_prod_df = AssignYM(non_farm_prod_df)
-
-non_farm_prod_filtered_df = non_farm_prod_df.loc[(non_farm_prod_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_prod_df['date']<=pd.Timestamp(end_date))]
-
-
-# chart 3: Output Per Hour - Total Nonfarm Employment
-
-non_farm_employment_df = pd.read_csv(folder_name+'/'+'CES0000000001.csv')
-
-non_farm_employment_df = AssignYM(non_farm_employment_df)
-
-non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_employment_df['date']<=pd.Timestamp(end_date))]
-
-
-col1,col2 = st.columns(2)
-
-with col1:
-
-
-    fig = px.pie(non_farm_prod_filtered_df, names='periodName',
-    color = ['#DAF7A6','#900C3F','#1ABC9C','#7F8C8D'],
-    values='value', title='Quarterwise Non-Farm Productivity')
-
-    # Display the chart in Streamlit
-    st.plotly_chart(fig)
-
-with col2:
-
-
-    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
-
-    st.bar_chart(non_farm_employment_filtered_df, 
-             x="yearMonth", y="value", color="#1ABC9C")
-
-
-
-# chart 4: Output Per Hour - Civilian Employment
-
-civ_employment_df = pd.read_csv(folder_name+'/'+'LNS12000000.csv')
-
-civ_employment_df = AssignYM(civ_employment_df)
-
-civ_employment_filtered_df = civ_employment_df.loc[(civ_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (civ_employment_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Civilian Employement - Seasonally Adjusted')
-
-st.bar_chart(civ_employment_filtered_df,horizontal=True, 
-             x="yearMonth", y="value",color='#FF6F61',use_container_width=True)
-
-# chart 5: Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted
-
-hourly_earnings_prod_emp_df = pd.read_csv(folder_name+'/'+'CES0500000008.csv')
-
-hourly_earnings_prod_emp_df = AssignYM(hourly_earnings_prod_emp_df)
-
-hourly_earnings_prod_emp_filtered_df = hourly_earnings_prod_emp_df.loc[(hourly_earnings_prod_emp_df['date']>=pd.Timestamp(start_date))&
-                                                (hourly_earnings_prod_emp_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Total Private Average Hourly Earnings - Seasonally Adjusted')
-
-st.bar_chart(hourly_earnings_prod_emp_filtered_df, horizontal=True,
-             x="yearMonth", y="value",color='#FFC300',use_container_width=True)
-
-
-# chart 6: 
-
-non_farm_bu_cost_df = pd.read_csv(folder_name+'/'+'PRS85006112.csv')
-
-non_farm_bu_cost_df = AssignYM(non_farm_bu_cost_df)
-
-non_farm_bu_cost_filtered_df = non_farm_bu_cost_df.loc[(non_farm_bu_cost_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_bu_cost_df['date']<=pd.Timestamp(end_date))]
-
-
-fig = px.pie(non_farm_bu_cost_filtered_df, names='periodName',
-        color = ['#3357FF','#16A085','#D35400','#BDC3C7'],
-        values='value', title='Non Farm Business Unit Cost')
-
-
-# Display the chart in Streamlit
-st.plotly_chart(fig)
-
-
-# Raw Data Pulled From API
-
-st.subheader('Data Pulled From API : Civilian Labor Force (Seasonally Adjusted)')
-
-st.dataframe(civ_labor_force_filtered[['yearMonth','latest','value']],use_container_width=True)
-
-st.subheader('Non-farm Business Productivity')
-
-st.dataframe(non_farm_prod_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-st.subheader('Non-farm Employment')
-
-st.dataframe(non_farm_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-st.subheader('Civilian Employement')
-
-st.dataframe(civ_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Total Private Average Hourly Earnings')
-
-st.dataframe(hourly_earnings_prod_emp_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Non Farm Business Unit Cost')
-
-st.dataframe(non_farm_bu_cost_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
+    df['yearMonth'] = df['year'].astype(str) + '-' + df['periodName'].map(month_mapping)
+    df['date'] = pd.to_datetime(df['yearMonth'])
+    filtered_data = df[(df['date'] >= pd.Timestamp(start_date)) & (df['date'] <= pd.Timestamp(end_date))]
+    return filtered_data.reset_index(drop=True)
+
+# ======= DASHBOARD VISUALIZATION ======= #
+def generate_chart(data, chart_type, title, x, y, color=None, **kwargs):
+    """
+    Generates a Plotly chart based on the specified chart type and configuration.
+    """
+    chart_mapping = {
+        "line": px.line,
+        "bar": px.bar,
+        "scatter": px.scatter,
+        "area": px.area
+    }
+
+    if chart_type not in chart_mapping:
+        raise ValueError(f"Unsupported chart type: {chart_type}")
+
+    fig = chart_mapping[chart_type](data, x=x, y=y, title=title, color=color, **kwargs)
+    fig.update_layout(
+        title=dict(font=dict(size=18)),
+        xaxis=dict(title=x),
+        yaxis=dict(title=y)
+    )
+    return fig
+
+
+def render_chart_and_data(df, chart_type, title, x, y, raw_data_title, color=None, color_sequence=None, **kwargs):
+    """
+    Renders both a chart and its corresponding raw data table.
+    """
+    fig = generate_chart(df, chart_type, title, x, y, color=color, color_discrete_sequence=color_sequence, **kwargs)
+    st.plotly_chart(fig, use_container_width=True)
+    st.write(f"### Raw Data: {raw_data_title}")
+    st.dataframe(df)
+
+# ======= MAIN APPLICATION ======= #
+if __name__ == "__main__":
+    # Fetch initial data if the storage folder doesn't exist
+    if not os.path.exists(STORAGE_FOLDER):
+        fetch_initial_data()
+
+    # Set up the Streamlit page
+    st.set_page_config(page_title="Labor Statistics Dashboard", layout="wide")
+    st.title("Labor Statistics Dashboard")
+
+    # Sidebar: Filter by Date Range
+    st.sidebar.header('Filter by Date Range')
+    start_date = st.sidebar.date_input("Start Date", value=datetime.now() - relativedelta(months=15))
+    end_date = st.sidebar.date_input("End Date", value=datetime.now())
+
+    # Load and preprocess datasets
+    datasets = {
+        "Unemployment Rate": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/LNS14000000.csv"), start_date, end_date),
+        "Non-Farm Employment": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/CES0000000001.csv"), start_date, end_date),
+        "Productivity": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/PRS85006092.csv"), start_date, end_date),
+        "Civilian Employment": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/LNS12000000.csv"), start_date, end_date),
+        "Hourly Earnings": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/CES0500000008.csv"), start_date, end_date),
+        "Labor Costs": prepare_data(pd.read_csv(f"{STORAGE_FOLDER}/PRS85006112.csv"), start_date, end_date),
+    }
+
+    # Render charts and raw data
+    render_chart_and_data(
+        datasets["Unemployment Rate"], "line", "Unemployment Rate Over Time", "date", "value", "Unemployment Rate",
+        color_sequence=["blue"], labels={"value": "Rate", "date": "Date"}, hover_data={"value": ":.2f"}
+    )
+
+    render_chart_and_data(
+        datasets["Non-Farm Employment"], "bar", "Non-Farm Employment Distribution", "date", "value", "Non-Farm Employment",
+        color="periodName", color_sequence=px.colors.qualitative.Pastel, labels={"value": "Employment Count", "date": "Date"}
+    )
+
+    render_chart_and_data(
+        datasets["Productivity"], "area", "Productivity Over Time", "date", "value", "Non-Farm Productivity",
+        color_sequence=["green"], labels={"value": "Productivity", "date": "Date"}
+    )
+
+    render_chart_and_data(
+        datasets["Civilian Employment"], "scatter", "Civilian Employment Trends", "date", "value", "Civilian Employment",
+        color_sequence=["purple"], labels={"value": "Employment Count", "date": "Date"}, hover_data={"value": ":.2f"}
+    )
+
+    render_chart_and_data(
+        datasets["Hourly Earnings"], "line", "Hourly Earnings Trends", "date", "value", "Hourly Earnings",
+        color_sequence=["orange"], labels={"value": "Earnings (USD)", "date": "Date"}, hover_data={"value": ":.2f"}
+    )
+
+    render_chart_and_data(
+        datasets["Labor Costs"], "bar", "Labor Costs", "value", "yearMonth", "Labor Costs",
+        color_sequence=px.colors.sequential.Blues, labels={"value": "Cost (USD)", "yearMonth": "Period"}, orientation="h"
+    )
