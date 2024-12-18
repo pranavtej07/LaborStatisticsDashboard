@@ -69,14 +69,23 @@ def update_data():
         series_data = [x for x in data['Results']['series'] if x['seriesID'] == series]
         if series_data:
             new_data = pd.DataFrame.from_dict(series_data[0]['data'], orient='columns')
-            old_data = pd.read_csv(f"{STORAGE_FOLDER}/{series}.csv")
+
+            # Handle missing or empty files
+            try:
+                old_data = pd.read_csv(f"{STORAGE_FOLDER}/{series}.csv")
+            except (FileNotFoundError, pd.errors.EmptyDataError):
+                old_data = pd.DataFrame()  # Treat as empty if file doesn't exist or is empty
 
             # Combine old and new data, removing duplicates
-            combined_data = pd.concat([old_data, new_data], ignore_index=True)
-            combined_data = combined_data.drop_duplicates(subset=['year', 'periodName'])
+            if not old_data.empty:  # If old_data has valid data
+                combined_data = pd.concat([old_data, new_data], ignore_index=True)
+                combined_data = combined_data.drop_duplicates(subset=['year', 'periodName'])
+            else:  # If old_data is empty, use new_data directly
+                combined_data = new_data
 
             # Save the updated dataset
             combined_data.to_csv(f"{STORAGE_FOLDER}/{series}.csv", index=False)
+
 
 # ======= DATA PROCESSING ======= #
 def prepare_data(df, start_date, end_date):
