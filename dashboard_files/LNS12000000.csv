@@ -1,5 +1,5 @@
 year,period,periodName,latest,value,footnotes
-2024,M11,November,True,161141,[{}]
+2024,M11,November,true,161141,[{}]
 2024,M10,October,,161496,[{}]
 2024,M09,September,,161864,[{}]
 2024,M08,August,,161434,[{}]
@@ -22,4 +22,3 @@ year,period,periodName,latest,value,footnotes
 2023,M03,March,,160824,[{}]
 2023,M02,February,,160301,[{}]
 2023,M01,January,,160152,"[{'code': '1', 'text': 'Data affected by changes in population controls.'}]"
-2024,M11,November,true,161141,[{}]
