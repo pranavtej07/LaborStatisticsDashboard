@@ -1,4 +1,4 @@
-from labor_statistics_dashboard import folder_name,LaborStatisticsDataPull
+from labor_statistics_dashboard import LaborStatisticsDataPull
 
 
 pull_data = LaborStatisticsDataPull(name='dev')
