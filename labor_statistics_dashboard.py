@@ -254,13 +254,22 @@ with col1:
             # Optionally, check for non-null values
             if non_farm_prod_filtered_df['periodName'].notnull().all() and non_farm_prod_filtered_df['value'].notnull().all():
                 try:
-                    # Plot the pie chart
+                    # Define the color mapping
+                    color_discrete_map = {
+                        '1st Quarter': '#DAF7A6',   # Light Green
+                        '2nd Quarter': '#900C3F',   # Dark Red
+                        '3rd Quarter': '#1ABC9C',   # Teal
+                        '4th Quarter': '#7F8C8D'    # Gray
+                    }
+                    
+                    # Plot the pie chart with color_discrete_map
                     fig = px.pie(
                         non_farm_prod_filtered_df,
                         names='periodName',
-                        color=['#DAF7A6','#900C3F','#1ABC9C','#7F8C8D'],
                         values='value',
-                        title='Quarterwise Non-Farm Productivity'
+                        title='Quarterwise Non-Farm Productivity',
+                        color='periodName',
+                        color_discrete_map=color_discrete_map
                     )
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
