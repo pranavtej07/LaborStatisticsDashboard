@@ -15,7 +15,7 @@ except ModuleNotFoundError:
     print("streamlit is not installed in the environment. Please install it using 'pip install streamlit' and try again.")
     st = None
 
-# configs 
+# configs
 
 folder_name = "labor_statistics_api_data"
 
@@ -54,11 +54,11 @@ class LaborStatisticsDataPull():
         },
     ]
 
-    def _init_(self, name):
+    def __init__(self, name):
 
-        self.name = name   
+        self.name = name  
 
-        self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list] 
+        self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list]
 
     def pullDataFull(self):
 
@@ -68,14 +68,14 @@ class LaborStatisticsDataPull():
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
 
-        # finding timestamp for last year 
+        # finding timestamp for last year
 
         this_year = datetime.now().year
 
         prev_year = (datetime.now() - relativedelta(months=12)).year
 
-        # api call        
-        
+        # api call       
+       
         headers = {'Content-type': 'application/json'}
         data = json.dumps({"seriesid": self.series_ids,"startyear":str(prev_year),"endyear":this_year,
         "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
@@ -96,16 +96,16 @@ class LaborStatisticsDataPull():
             seried_tables[_id]=df_table
 
             df_table.to_csv(folder_name+'/'+_id+'.csv',index=False)
-    
+   
         return {'status':"Success"}
-    
+   
     def pullLatestData(self):
 
-        # api call        
+        # api call       
         headers = {'Content-type': 'application/json'}
         data = json.dumps({"seriesid": self.series_ids,'latest':True,
         "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
-        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/', 
+        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/',
                     data=data, headers=headers)
 
         json_data = json.loads(p.text)
@@ -147,7 +147,7 @@ if st:
         # Mapping of month names to month numbers
         month_map = {
             'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06',
-            'July': '07', 'August': '08', 'September': '09', 'October': '10', 
+            'July': '07', 'August': '08', 'September': '09', 'October': '10',
             'November': '11', 'December': '12',
             "1st Quarter":'03','2nd Quarter':"06","3rd Quarter":"09","4th Quarter":"12"
         }
@@ -169,14 +169,14 @@ if st:
 
     st.sidebar.header('Filter By Date Range')
 
-    start_date = st.sidebar.date_input("Start Date", 
-                value=datetime.now() - relativedelta(months=15), 
-                min_value=datetime.now() - relativedelta(months=15), 
+    start_date = st.sidebar.date_input("Start Date",
+                value=datetime.now() - relativedelta(months=15),
+                min_value=datetime.now() - relativedelta(months=15),
                 max_value=datetime.now())
 
-    end_date = st.sidebar.date_input("End Date", 
-                value=datetime.now(), 
-                min_value=datetime.now() - relativedelta(months=15), 
+    end_date = st.sidebar.date_input("End Date",
+                value=datetime.now(),
+                min_value=datetime.now() - relativedelta(months=15),
                 max_value=datetime.now())
 
     # chart: Unemployment Rate
@@ -190,8 +190,8 @@ if st:
 
     st.subheader('Unemployment Rate - Seasonally Adjusted')
 
-    st.line_chart(unemployment_rate_filtered_df[['yearMonth','value']], 
-                  x='yearMonth', 
+    st.line_chart(unemployment_rate_filtered_df[['yearMonth','value']],
+                  x='yearMonth',
                   y='value',
                   use_container_width=True)
 
@@ -202,3 +202,4 @@ if st:
     st.subheader('Unemployment Rate - Raw Data')
 
     st.dataframe(unemployment_rate_filtered_df[["year", "period", "periodName", "latest", "value"]], use_container_width=True)
+
