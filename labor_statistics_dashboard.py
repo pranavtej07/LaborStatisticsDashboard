@@ -9,6 +9,7 @@ import os
 import streamlit as st
 import numpy as np
 import plotly.express as px
+import plotly.colors as pc
 
 # configs 
 
@@ -347,42 +348,21 @@ non_farm_bu_cost_filtered_df = non_farm_bu_cost_df.loc[(non_farm_bu_cost_df['dat
                                                 (non_farm_bu_cost_df['date']<=pd.Timestamp(end_date))]
 
 
-# Define the color mapping
-color_discrete_map = {
-    '1st Quarter': '#3357FF',  # Blue
-    '2nd Quarter': '#16A085',  # Teal
-    '3rd Quarter': '#D35400',  # Orange
-    '4th Quarter': '#BDC3C7'   # Light Gray
-}
 
-# Plot the Pie Chart
-st.subheader('Non Farm Business Unit Cost')
+# Generate a color palette based on the number of unique categories
+unique_periods = non_farm_bu_cost_filtered_df['periodName'].unique()
+color_palette = pc.qualitative.Plotly  # You can choose other palettes like 'D3', 'Set1', etc.
 
-if not non_farm_bu_cost_filtered_df.empty:
-    if 'periodName' in non_farm_bu_cost_filtered_df.columns and 'value' in non_farm_bu_cost_filtered_df.columns:
-        if non_farm_bu_cost_filtered_df['periodName'].notnull().all() and non_farm_bu_cost_filtered_df['value'].notnull().all():
-            try:
-                fig = px.pie(
-                    non_farm_bu_cost_filtered_df,
-                    names='periodName',
-                    values='value',
-                    title='Non Farm Business Unit Cost',
-                    color='periodName',
-                    color_discrete_map=color_discrete_map
-                )
-                st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.error(f"An error occurred while plotting the pie chart: {e}")
-        else:
-            st.warning("The data contains missing values in 'periodName' or 'value' columns.")
-    else:
-        st.warning("Required columns ('periodName' and 'value') are missing in the data.")
-else:
-    st.warning("No data available for 'Non Farm Business Unit Cost' within the selected date range.")
+fig = px.pie(
+    non_farm_bu_cost_filtered_df,
+    names='periodName',
+    values='value',
+    title='Non Farm Business Unit Cost',
+    color='periodName',
+    color_discrete_map=color_discrete_map
+)
+st.plotly_chart(fig, use_container_width=True)
 
-
-# Display the chart in Streamlit
-st.plotly_chart(fig)
 
 
 # Raw Data Pulled From API
