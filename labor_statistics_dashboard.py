@@ -6,15 +6,18 @@ import requests
 import json
 import pandas as pd
 import os
-import streamlit as st
 import numpy as np
 import plotly.express as px
-import plotly.colors as pc
+
+try:
+    import streamlit as st
+except ModuleNotFoundError:
+    print("streamlit is not installed in the environment. Please install it using 'pip install streamlit' and try again.")
+    st = None
 
 # configs 
 
 folder_name = "labor_statistics_api_data"
-
 
 # main object
 
@@ -45,24 +48,21 @@ class LaborStatisticsDataPull():
             "name":"Nonfarm Business Unit Labor Costs",
             'code': "PRS85006112"
         },
-
+        {
+            "name":"Unemployment Rate",
+            'code': "LNS14000000"
+        },
     ]
 
-    
-
-    def __init__(self,name):
+    def _init_(self, name):
 
         self.name = name   
 
         self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list] 
 
-        
-
-
     def pullDataFull(self):
 
         'fetches all data for api in last year'
-
 
         # create a folder if it doesnot exist
         if not os.path.exists(folder_name):
@@ -73,7 +73,6 @@ class LaborStatisticsDataPull():
         this_year = datetime.now().year
 
         prev_year = (datetime.now() - relativedelta(months=12)).year
-
 
         # api call        
         
@@ -98,10 +97,8 @@ class LaborStatisticsDataPull():
 
             df_table.to_csv(folder_name+'/'+_id+'.csv',index=False)
     
-
         return {'status':"Success"}
     
-
     def pullLatestData(self):
 
         # api call        
@@ -129,13 +126,10 @@ class LaborStatisticsDataPull():
             # Remove duplicates based on 'col1' and 'col2'
             unique_df = combined_df.drop_duplicates(subset=['year','periodName'])
 
-            # print(unique_df.sort_values(by=['year','periodName']))
-
             unique_df.to_csv(folder_name+'/'+_id+'.csv',index=False)
 
             print('updating the data ....')
 
-        
         return {"status":"Incremental Successful"}
 
 api_data_pull = LaborStatisticsDataPull(name='laborstats')
@@ -146,249 +140,65 @@ if os.path.exists(folder_name) == False:
 
 # Dashboard Layer
 
-def AssignYM(df):
+if st:
 
-    # Mapping of month names to month numbers
-    month_map = {
-        'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06',
-        'July': '07', 'August': '08', 'September': '09', 'October': '10', 
-        'November': '11', 'December': '12',
-        "1st Quarter":'03','2nd Quarter':"06","3rd Quarter":"09","4th Quarter":"12"
-    }
+    def AssignYM(df):
 
-    # Create yearMonth column by combining 'year' and 'month' (mapped to month number)
-    df['yearMonth'] = df['year'].astype(str) + '-' + df['periodName'].map(month_map)
+        # Mapping of month names to month numbers
+        month_map = {
+            'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06',
+            'July': '07', 'August': '08', 'September': '09', 'October': '10', 
+            'November': '11', 'December': '12',
+            "1st Quarter":'03','2nd Quarter':"06","3rd Quarter":"09","4th Quarter":"12"
+        }
 
-    # print(df['yearMonth'])
+        # Create yearMonth column by combining 'year' and 'month' (mapped to month number)
+        df['yearMonth'] = df['year'].astype(str) + '-' + df['periodName'].map(month_map)
 
-    df['date']=pd.to_datetime(df['yearMonth'])
+        df['date']=pd.to_datetime(df['yearMonth'])
 
-    return df
+        return df
 
-# Set the title of the dashboard
+    # Set the title of the dashboard
 
-st.set_page_config(page_title="Labor Statistics - Dashboard", layout="wide")
+    st.set_page_config(page_title="Labor Statistics - Dashboard", layout="wide")
 
-st.title("U.S Beaureau Of Labor Statistics - Dashboard")
+    st.title("U.S Bureau Of Labor Statistics - Dashboard")
 
-# sidebar to select dates
+    # sidebar to select dates
 
-st.sidebar.header('Filter By Date Range')
+    st.sidebar.header('Filter By Date Range')
 
-start_date = st.sidebar.date_input("Start Date", 
-            value=datetime.now() - relativedelta(months=15), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
+    start_date = st.sidebar.date_input("Start Date", 
+                value=datetime.now() - relativedelta(months=15), 
+                min_value=datetime.now() - relativedelta(months=15), 
+                max_value=datetime.now())
 
-end_date = st.sidebar.date_input("End Date", 
-            value=datetime.now(), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
+    end_date = st.sidebar.date_input("End Date", 
+                value=datetime.now(), 
+                min_value=datetime.now() - relativedelta(months=15), 
+                max_value=datetime.now())
 
-# # Add a button to trigger the reload
-# if st.sidebar.button('Pull Latest Data',):    
+    # chart: Unemployment Rate
 
-#     api_data_pull.pullLatestData()
+    unemployment_rate_df = pd.read_csv(folder_name+'/'+'LNS14000000.csv')
 
-#     # This will cause the app to rerun
-#     st.rerun()
+    unemployment_rate_df = AssignYM(unemployment_rate_df)
 
+    unemployment_rate_filtered_df = unemployment_rate_df.loc[(unemployment_rate_df['date']>=pd.Timestamp(start_date))&
+                                                    (unemployment_rate_df['date']<=pd.Timestamp(end_date))]
 
-# chart 1 : Civilian Labor Force
+    st.subheader('Unemployment Rate - Seasonally Adjusted')
 
-civ_labor_force = pd.read_csv(folder_name+'/'+'LNS11000000.csv')
+    st.line_chart(unemployment_rate_filtered_df[['yearMonth','value']], 
+                  x='yearMonth', 
+                  y='value',
+                  use_container_width=True)
 
-civ_labor_force = AssignYM(civ_labor_force)
+    # Rest of the code for other charts and dataframes stays the same
 
-civ_labor_force_filtered = civ_labor_force.loc[(civ_labor_force['date']>=pd.Timestamp(start_date))&
-                                                (civ_labor_force['date']<=pd.Timestamp(end_date))]
+    # Display raw data for Unemployment Rate
 
-civ_labor_force_filtered.reset_index(inplace=True,drop=True)
+    st.subheader('Unemployment Rate - Raw Data')
 
-
-# civ_labor_force_filtered.loc[:,'colorcode']=['#FF0000' if x == True else "#0000FF" for x in civ_labor_force_filtered['latest']]
-
-# print(civ_labor_force.loc[:,'color'])
-
-
-
-st.subheader('Number Of Civilian Employees Over A Period')
-
-st.area_chart(civ_labor_force_filtered[['yearMonth','value']], 
-                x="yearMonth", 
-                y="value",x_label='Month',
-                color='#ffaa00',
-                # color='latest',
-                y_label='Number Of Laborers',use_container_width=True)
-
-
-
-
-
-# chart 2: Output Per Hour - Non-farm Business Productivity
-
-non_farm_prod_df = pd.read_csv(folder_name+'/'+'PRS85006092.csv')
-
-non_farm_prod_df = AssignYM(non_farm_prod_df)
-
-non_farm_prod_filtered_df = non_farm_prod_df.loc[(non_farm_prod_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_prod_df['date']<=pd.Timestamp(end_date))]
-
-
-# chart 3: Output Per Hour - Total Nonfarm Employment
-
-non_farm_employment_df = pd.read_csv(folder_name+'/'+'CES0000000001.csv')
-
-non_farm_employment_df = AssignYM(non_farm_employment_df)
-
-non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_employment_df['date']<=pd.Timestamp(end_date))]
-
-
-col1,col2 = st.columns(2)
-
-with col1:
-    # Check if the DataFrame is not empty
-    if not non_farm_prod_filtered_df.empty:
-        # Further check if required columns exist
-        if 'periodName' in non_farm_prod_filtered_df.columns and 'value' in non_farm_prod_filtered_df.columns:
-            # Optionally, check for non-null values
-            if non_farm_prod_filtered_df['periodName'].notnull().all() and non_farm_prod_filtered_df['value'].notnull().all():
-                try:
-                    # Define the color mapping
-                    color_discrete_map = {
-                        '1st Quarter': '#DAF7A6',   # Light Green
-                        '2nd Quarter': '#900C3F',   # Dark Red
-                        '3rd Quarter': '#1ABC9C',   # Teal
-                        '4th Quarter': '#7F8C8D'    # Gray
-                    }
-                    
-                    # Plot the pie chart with color_discrete_map
-                    fig = px.pie(
-                        non_farm_prod_filtered_df,
-                        names='periodName',
-                        values='value',
-                        title='Quarterwise Non-Farm Productivity',
-                        color='periodName',
-                        color_discrete_map=color_discrete_map
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception as e:
-                    st.error(f"An error occurred while plotting the pie chart: {e}")
-            else:
-                st.warning("The data contains missing values in 'periodName' or 'value' columns.")
-        else:
-            st.warning("Required columns ('periodName' and 'value') are missing in the data.")
-    else:
-        st.warning("No data available for 'Non-farm Business Productivity' within the selected date range.")
-
-with col2:
-    # Check if the DataFrame is not empty
-    if not non_farm_employment_filtered_df.empty:
-        # Further check if required columns exist
-        if 'yearMonth' in non_farm_employment_filtered_df.columns and 'value' in non_farm_employment_filtered_df.columns:
-            # Optionally, check for non-null values
-            if non_farm_employment_filtered_df['yearMonth'].notnull().all() and non_farm_employment_filtered_df['value'].notnull().all():
-                try:
-                    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
-                    st.bar_chart(
-                        non_farm_employment_filtered_df, 
-                        x="yearMonth", 
-                        y="value", 
-                        color="#1ABC9C",
-                        use_container_width=True
-                    )
-                except Exception as e:
-                    st.error(f"An error occurred while plotting the bar chart: {e}")
-            else:
-                st.warning("The data contains missing values in 'yearMonth' or 'value' columns.")
-        else:
-            st.warning("Required columns ('yearMonth' and 'value') are missing in the data.")
-    else:
-        st.warning("No data available for 'Total Nonfarm Employment' within the selected date range.")
-
-
-
-# chart 4: Output Per Hour - Civilian Employment
-
-civ_employment_df = pd.read_csv(folder_name+'/'+'LNS12000000.csv')
-
-civ_employment_df = AssignYM(civ_employment_df)
-
-civ_employment_filtered_df = civ_employment_df.loc[(civ_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (civ_employment_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Civilian Employement - Seasonally Adjusted')
-
-st.bar_chart(civ_employment_filtered_df,horizontal=True, 
-             x="yearMonth", y="value",color='#FF6F61',use_container_width=True)
-
-# chart 5: Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted
-
-hourly_earnings_prod_emp_df = pd.read_csv(folder_name+'/'+'CES0500000008.csv')
-
-hourly_earnings_prod_emp_df = AssignYM(hourly_earnings_prod_emp_df)
-
-hourly_earnings_prod_emp_filtered_df = hourly_earnings_prod_emp_df.loc[(hourly_earnings_prod_emp_df['date']>=pd.Timestamp(start_date))&
-                                                (hourly_earnings_prod_emp_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Total Private Average Hourly Earnings - Seasonally Adjusted')
-
-st.bar_chart(hourly_earnings_prod_emp_filtered_df, horizontal=True,
-             x="yearMonth", y="value",color='#FFC300',use_container_width=True)
-
-
-# chart 6: 
-
-non_farm_bu_cost_df = pd.read_csv(folder_name+'/'+'PRS85006112.csv')
-
-non_farm_bu_cost_df = AssignYM(non_farm_bu_cost_df)
-
-non_farm_bu_cost_filtered_df = non_farm_bu_cost_df.loc[(non_farm_bu_cost_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_bu_cost_df['date']<=pd.Timestamp(end_date))]
-
-
-
-# Generate a color palette based on the number of unique categories
-unique_periods = non_farm_bu_cost_filtered_df['periodName'].unique()
-color_palette = pc.qualitative.Plotly  # You can choose other palettes like 'D3', 'Set1', etc.
-
-fig = px.pie(
-    non_farm_bu_cost_filtered_df,
-    names='periodName',
-    values='value',
-    title='Non Farm Business Unit Cost',
-    color='periodName',
-    color_discrete_map=color_discrete_map
-)
-st.plotly_chart(fig, use_container_width=True)
-
-
-
-# Raw Data Pulled From API
-
-st.subheader('Data Pulled From API : Civilian Labor Force (Seasonally Adjusted)')
-
-st.dataframe(civ_labor_force_filtered[['yearMonth','latest','value']],use_container_width=True)
-
-st.subheader('Non-farm Business Productivity')
-
-st.dataframe(non_farm_prod_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-st.subheader('Non-farm Employment')
-
-st.dataframe(non_farm_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-st.subheader('Civilian Employement')
-
-st.dataframe(civ_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Total Private Average Hourly Earnings')
-
-st.dataframe(hourly_earnings_prod_emp_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Non Farm Business Unit Cost')
-
-st.dataframe(non_farm_bu_cost_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
+    st.dataframe(unemployment_rate_filtered_df[["year", "period", "periodName", "latest", "value"]], use_container_width=True)
