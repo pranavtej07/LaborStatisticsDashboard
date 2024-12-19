@@ -1,4 +1,4 @@
-# dependecies
+# Dependencies
 
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -10,334 +10,344 @@ import streamlit as st
 import numpy as np
 import plotly.express as px
 
-# configs 
 
-folder_name = "labor_statistics_api_data"
+FOLDER_NAME = "labor_statistics_api_data"
+API_REGISTRATION_KEY = "93ee8e3a1d66428298ca51eceb0fca71"
+API_URL = 'https://api.bls.gov/publicAPI/v2/timeseries/data/'
 
 
-# main object
-
-class LaborStatisticsDataPull():
-
+class LaborStatisticsDataPull:
     api_desc_list = [
         {
-            'name':"Civilian Labor Force (Seasonally Adjusted)",
-            'code':"LNS11000000"
+            'name': "Civilian Labor Force (Seasonally Adjusted)",
+            'code': "LNS11000000"
         },
         {
-            'name':"Output Per Hour - Non-farm Business Productivity",
-            'code':"PRS85006092"
+            'name': "Output Per Hour - Non-farm Business Productivity",
+            'code': "PRS85006092"
         },
         {
-            "name":"Total Nonfarm Employment - Seasonally Adjusted",
-            "code":"CES0000000001"
+            "name": "Total Nonfarm Employment - Seasonally Adjusted",
+            "code": "CES0000000001"
         },
         {
-            "name":"Civilian Employment (Seasonally Adjusted)",
+            "name": "Civilian Employment (Seasonally Adjusted)",
             "code": "LNS12000000"
         },
         {
-            "name":"Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted",
+            "name": "Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted",
             'code': "CES0500000008"
         },
         {
-            "name":"Nonfarm Business Unit Labor Costs",
+            "name": "Nonfarm Business Unit Labor Costs",
             'code': "PRS85006112"
         },
-
     ]
 
-    
-
-    def __init__(self,name):
-
-        self.name = name   
-
-        self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list] 
-
-        
-
+    def __init__(self, name):
+        self.name = name
+        self.series_ids = [x['code'] for x in LaborStatisticsDataPull.api_desc_list]
 
     def pullDataFull(self):
-
-        'fetches all data for api in last year'
-
-
-        # create a folder if it doesnot exist
-        if not os.path.exists(folder_name):
-            os.makedirs(folder_name)
-
-        # finding timestamp for last year 
+        """
+        Fetches all data for the API in the last year.
+        """
+        if not os.path.exists(FOLDER_NAME):
+            os.makedirs(FOLDER_NAME)
 
         this_year = datetime.now().year
-
         prev_year = (datetime.now() - relativedelta(months=12)).year
 
-
-        # api call        
-        
         headers = {'Content-type': 'application/json'}
-        data = json.dumps({"seriesid": self.series_ids,"startyear":str(prev_year),"endyear":this_year,
-        "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
-        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/', data=data, headers=headers)
+        data = json.dumps({
+            "seriesid": self.series_ids,
+            "startyear": str(prev_year),
+            "endyear": str(this_year),
+            "registrationkey": API_REGISTRATION_KEY
+        })
 
-        # creating dataframe
+        response = requests.post(API_URL, data=data, headers=headers)
+        json_data = response.json()
 
-        json_data = json.loads(p.text)
-
-        seried_tables={}
+        seried_tables = {}
 
         for _id in self.series_ids:
+            data_obj = next((x for x in json_data['Results']['series'] if x['seriesID'] == _id), None)
+            if data_obj:
+                df_table = pd.DataFrame(data_obj['data'])
+                seried_tables[_id] = df_table
+                df_table.to_csv(os.path.join(FOLDER_NAME, f'{_id}.csv'), index=False)
+            else:
+                st.warning(f"No data returned for series ID: {_id}")
 
-            data_obj = [x for x in json_data['Results']['series'] if x['seriesID'] ==_id]
-
-            df_table = pd.DataFrame.from_dict(data_obj[0]['data'],orient='columns')
-
-            seried_tables[_id]=df_table
-
-            df_table.to_csv(folder_name+'/'+_id+'.csv',index=False)
-    
-
-        return {'status':"Success"}
-    
+        return {'status': "Success"}
 
     def pullLatestData(self):
-
-        # api call        
+        """
+        Fetches the latest data for the API.
+        """
         headers = {'Content-type': 'application/json'}
-        data = json.dumps({"seriesid": self.series_ids,'latest':True,
-        "registrationkey":"93ee8e3a1d66428298ca51eceb0fca71"})
-        p = requests.post('https://api.bls.gov/publicAPI/v2/timeseries/data/', 
-                    data=data, headers=headers)
-
-        json_data = json.loads(p.text)
+        data = json.dumps({
+            "seriesid": self.series_ids,
+            "latest": True,
+            "registrationkey": API_REGISTRATION_KEY
+        })
+        response = requests.post(API_URL, data=data, headers=headers)
+        json_data = response.json()
 
         for _id in self.series_ids:
+            data_obj = next((x for x in json_data['Results']['series'] if x['seriesID'] == _id), None)
+            if data_obj:
+                latest_data = pd.DataFrame(data_obj['data'])
+                orig_table_path = os.path.join(FOLDER_NAME, f'{_id}.csv')
 
-            data_obj = [x for x in json_data['Results']['series'] if x['seriesID'] ==_id]
+                if os.path.exists(orig_table_path):
+                    orig_table = pd.read_csv(orig_table_path)
+                    combined_df = pd.concat([orig_table, latest_data], ignore_index=True)
+                    combined_df['year'] = combined_df['year'].astype(str)
 
-            orig_table = pd.read_csv(folder_name+'/'+_id+'.csv')
+                    unique_df = combined_df.drop_duplicates(subset=['year', 'periodName'])
 
-            df_table = pd.DataFrame.from_dict(data_obj[0]['data'],orient='columns')
+                    unique_df.to_csv(orig_table_path, index=False)
+                    st.success(f'Updated data for series ID: {_id}')
+                else:
+                    latest_data.to_csv(orig_table_path, index=False)
+                    st.info(f'Created new data file for series ID: {_id}')
+            else:
+                st.warning(f"No latest data returned for series ID: {_id}")
 
-            # Append df2 to df1
-            combined_df = pd.concat([orig_table, df_table], ignore_index=True)
+        return {"status": "Incremental Successful"}
 
-            combined_df.loc[:,'year']=combined_df['year'].astype(str)
-
-            # Remove duplicates based on 'col1' and 'col2'
-            unique_df = combined_df.drop_duplicates(subset=['year','periodName'])
-
-            # print(unique_df.sort_values(by=['year','periodName']))
-
-            unique_df.to_csv(folder_name+'/'+_id+'.csv',index=False)
-
-            print('updating the data ....')
-
-        
-        return {"status":"Incremental Successful"}
 
 api_data_pull = LaborStatisticsDataPull(name='laborstats')
 
-if os.path.exists(folder_name) == False:
+if not os.path.exists(FOLDER_NAME):
+    with st.spinner('Fetching initial data from BLS API...'):
+        api_data_pull.pullDataFull()
+    st.success('Initial data fetched successfully.')
 
-    api_data_pull.pullDataFull()
-
-# Dashboard Layer
 
 def AssignYM(df):
-
-    # Mapping of month names to month numbers
+    """
+    Assigns a 'yearMonth' and 'date' column to the DataFrame based on 'year' and 'periodName'.
+    """
+   
     month_map = {
-        'January': '01', 'February': '02', 'March': '03', 'April': '04', 'May': '05', 'June': '06',
-        'July': '07', 'August': '08', 'September': '09', 'October': '10', 
-        'November': '11', 'December': '12',
-        "1st Quarter":'03','2nd Quarter':"06","3rd Quarter":"09","4th Quarter":"12"
+        'January': '01', 'February': '02', 'March': '03', 'April': '04',
+        'May': '05', 'June': '06', 'July': '07', 'August': '08',
+        'September': '09', 'October': '10', 'November': '11', 'December': '12',
+        "1st Quarter": '03', '2nd Quarter': "06", "3rd Quarter": "09", "4th Quarter": "12"
     }
 
-    # Create yearMonth column by combining 'year' and 'month' (mapped to month number)
+   
     df['yearMonth'] = df['year'].astype(str) + '-' + df['periodName'].map(month_map)
 
-    # print(df['yearMonth'])
+   
+    df['date'] = pd.to_datetime(df['yearMonth'], errors='coerce')
 
-    df['date']=pd.to_datetime(df['yearMonth'])
+    df = df.dropna(subset=['date'])
 
     return df
 
-# Set the title of the dashboard
+def load_data(series_code):
+    """
+    Loads and processes data for a given series code.
+    """
+    df_path = os.path.join(FOLDER_NAME, f'{series_code}.csv')
+    if os.path.exists(df_path):
+        df = pd.read_csv(df_path)
+        df = AssignYM(df)
+        return df
+    else:
+        st.error(f"Data file for series ID {series_code} not found.")
+        return pd.DataFrame()
+
+def filter_df(df, start_date, end_date):
+    """
+    Filters the DataFrame based on the selected date range.
+    """
+    if df.empty:
+        return df
+    return df.loc[(df['date'] >= pd.Timestamp(start_date)) & (df['date'] <= pd.Timestamp(end_date))]
+
 
 st.set_page_config(page_title="Labor Statistics - Dashboard", layout="wide")
-
-st.title("U.S Beaureau Of Labor Statistics - Dashboard")
-
-# sidebar to select dates
-
-st.sidebar.header('Filter By Date Range')
-
-start_date = st.sidebar.date_input("Start Date", 
-            value=datetime.now() - relativedelta(months=15), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
-
-end_date = st.sidebar.date_input("End Date", 
-            value=datetime.now(), 
-            min_value=datetime.now() - relativedelta(months=15), 
-            max_value=datetime.now())
-
-# # Add a button to trigger the reload
-# if st.sidebar.button('Pull Latest Data',):    
-
-#     api_data_pull.pullLatestData()
-
-#     # This will cause the app to rerun
-#     st.rerun()
+st.title("U.S. Bureau of Labor Statistics - Dashboard")
 
 
-# chart 1 : Civilian Labor Force
-
-civ_labor_force = pd.read_csv(folder_name+'/'+'LNS11000000.csv')
-
-civ_labor_force = AssignYM(civ_labor_force)
-
-civ_labor_force_filtered = civ_labor_force.loc[(civ_labor_force['date']>=pd.Timestamp(start_date))&
-                                                (civ_labor_force['date']<=pd.Timestamp(end_date))]
-
-civ_labor_force_filtered.reset_index(inplace=True,drop=True)
+st.sidebar.header('Controls')
 
 
-# civ_labor_force_filtered.loc[:,'colorcode']=['#FF0000' if x == True else "#0000FF" for x in civ_labor_force_filtered['latest']]
+if st.sidebar.button('Pull Latest Data'):
+    with st.spinner('Fetching latest data from BLS API...'):
+        api_data_pull.pullLatestData()
+    st.success('Latest data fetched successfully.')
+    st.experimental_rerun()  
 
-# print(civ_labor_force.loc[:,'color'])
 
+civ_labor_force = load_data('LNS11000000')
+non_farm_prod_df = load_data('PRS85006092')
+non_farm_employment_df = load_data('CES0000000001')
+civ_employment_df = load_data('LNS12000000')
+hourly_earnings_prod_emp_df = load_data('CES0500000008')
+non_farm_bu_cost_df = load_data('PRS85006112')
+
+
+latest_dates = [
+    civ_labor_force['date'].max() if not civ_labor_force.empty else pd.NaT,
+    non_farm_prod_df['date'].max() if not non_farm_prod_df.empty else pd.NaT,
+    non_farm_employment_df['date'].max() if not non_farm_employment_df.empty else pd.NaT,
+    civ_employment_df['date'].max() if not civ_employment_df.empty else pd.NaT,
+    hourly_earnings_prod_emp_df['date'].max() if not hourly_earnings_prod_emp_df.empty else pd.NaT,
+    non_farm_bu_cost_df['date'].max() if not non_farm_bu_cost_df.empty else pd.NaT
+]
+
+
+latest_date = pd.to_datetime('1900-01-01')
+for date in latest_dates:
+    if pd.notna(date) and date > latest_date:
+        latest_date = date
+
+if latest_date == pd.to_datetime('1900-01-01'):
+    latest_date = datetime.now()
+
+
+start_date = st.sidebar.date_input(
+    "Start Date",
+    value=(latest_date - relativedelta(months=15)).date(),
+    min_value=datetime(2000, 1, 1).date(),
+    max_value=latest_date.date()
+)
+
+end_date = st.sidebar.date_input(
+    "End Date",
+    value=latest_date.date(),
+    min_value=(latest_date - relativedelta(months=15)).date(),
+    max_value=latest_date.date()
+)
+
+
+if start_date > end_date:
+    st.sidebar.error("Error: Start Date must be before End Date.")
+
+
+civ_labor_force_filtered = filter_df(civ_labor_force, start_date, end_date).reset_index(drop=True)
+non_farm_prod_filtered_df = filter_df(non_farm_prod_df, start_date, end_date)
+non_farm_employment_filtered_df = filter_df(non_farm_employment_df, start_date, end_date)
+civ_employment_filtered_df = filter_df(civ_employment_df, start_date, end_date)
+hourly_earnings_prod_emp_filtered_df = filter_df(hourly_earnings_prod_emp_df, start_date, end_date)
+non_farm_bu_cost_filtered_df = filter_df(non_farm_bu_cost_df, start_date, end_date)
 
 
 st.subheader('Number Of Civilian Employees Over A Period')
-
-st.area_chart(civ_labor_force_filtered[['yearMonth','value']], 
-                x="yearMonth", 
-                y="value",x_label='Month',
-                color='#ffaa00',
-                # color='latest',
-                y_label='Number Of Laborers',use_container_width=True)
-
-
-
-
-
-# chart 2: Output Per Hour - Non-farm Business Productivity
-
-non_farm_prod_df = pd.read_csv(folder_name+'/'+'PRS85006092.csv')
-
-non_farm_prod_df = AssignYM(non_farm_prod_df)
-
-non_farm_prod_filtered_df = non_farm_prod_df.loc[(non_farm_prod_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_prod_df['date']<=pd.Timestamp(end_date))]
+if not civ_labor_force_filtered.empty:
+    civ_labor_force_filtered_sorted = civ_labor_force_filtered.sort_values(by='date')
+    st.area_chart(
+        civ_labor_force_filtered_sorted[['yearMonth', 'value']],
+        x="yearMonth",
+        y="value",
+        use_container_width=True
+    )
+else:
+    st.warning("No Civilian Labor Force data available for the selected date range.")
 
 
-# chart 3: Output Per Hour - Total Nonfarm Employment
-
-non_farm_employment_df = pd.read_csv(folder_name+'/'+'CES0000000001.csv')
-
-non_farm_employment_df = AssignYM(non_farm_employment_df)
-
-non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_employment_df['date']<=pd.Timestamp(end_date))]
-
-
-col1,col2 = st.columns(2)
-
-with col1:
-
-
-    fig = px.pie(non_farm_prod_filtered_df, names='periodName',
-    color = ['#DAF7A6','#900C3F','#1ABC9C','#7F8C8D'],
-    values='value', title='Quarterwise Non-Farm Productivity')
-
-    # Display the chart in Streamlit
-    st.plotly_chart(fig)
-
-with col2:
+st.subheader('Quarterwise Non-Farm Productivity')
+if not non_farm_prod_filtered_df.empty:
+    fig = px.pie(
+        non_farm_prod_filtered_df,
+        names='periodName',
+        color_discrete_sequence=['#DAF7A6', '#900C3F', '#1ABC9C', '#7F8C8D'],
+        values='value',
+        title='Quarterwise Non-Farm Productivity'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.warning("No Non-Farm Productivity data available for the selected date range.")
 
 
-    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
+st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
+if not non_farm_employment_filtered_df.empty:
+    non_farm_employment_sorted = non_farm_employment_filtered_df.sort_values(by='date')
+    st.bar_chart(
+        non_farm_employment_sorted[['yearMonth', 'value']],
+        x="yearMonth",
+        y="value",
+        use_container_width=True
+    )
+else:
+    st.warning("No Nonfarm Employment data available for the selected date range.")
 
-    st.bar_chart(non_farm_employment_filtered_df, 
-             x="yearMonth", y="value", color="#1ABC9C")
+st.subheader('Civilian Employment - Seasonally Adjusted')
+if not civ_employment_filtered_df.empty:
+    civ_employment_sorted = civ_employment_filtered_df.sort_values(by='date')
+    st.bar_chart(
+        civ_employment_sorted[['yearMonth', 'value']],
+        x="yearMonth",
+        y="value",
+        use_container_width=True
+    )
+else:
+    st.warning("No Civilian Employment data available for the selected date range.")
 
-
-
-# chart 4: Output Per Hour - Civilian Employment
-
-civ_employment_df = pd.read_csv(folder_name+'/'+'LNS12000000.csv')
-
-civ_employment_df = AssignYM(civ_employment_df)
-
-civ_employment_filtered_df = civ_employment_df.loc[(civ_employment_df['date']>=pd.Timestamp(start_date))&
-                                                (civ_employment_df['date']<=pd.Timestamp(end_date))]
-
-st.subheader('Civilian Employement - Seasonally Adjusted')
-
-st.bar_chart(civ_employment_filtered_df,horizontal=True, 
-             x="yearMonth", y="value",color='#FF6F61',use_container_width=True)
-
-# chart 5: Total Private Average Hourly Earnings of Prod. and Nonsup. Employees - Seasonally Adjusted
-
-hourly_earnings_prod_emp_df = pd.read_csv(folder_name+'/'+'CES0500000008.csv')
-
-hourly_earnings_prod_emp_df = AssignYM(hourly_earnings_prod_emp_df)
-
-hourly_earnings_prod_emp_filtered_df = hourly_earnings_prod_emp_df.loc[(hourly_earnings_prod_emp_df['date']>=pd.Timestamp(start_date))&
-                                                (hourly_earnings_prod_emp_df['date']<=pd.Timestamp(end_date))]
 
 st.subheader('Total Private Average Hourly Earnings - Seasonally Adjusted')
-
-st.bar_chart(hourly_earnings_prod_emp_filtered_df, horizontal=True,
-             x="yearMonth", y="value",color='#FFC300',use_container_width=True)
-
-
-# chart 6: 
-
-non_farm_bu_cost_df = pd.read_csv(folder_name+'/'+'PRS85006112.csv')
-
-non_farm_bu_cost_df = AssignYM(non_farm_bu_cost_df)
-
-non_farm_bu_cost_filtered_df = non_farm_bu_cost_df.loc[(non_farm_bu_cost_df['date']>=pd.Timestamp(start_date))&
-                                                (non_farm_bu_cost_df['date']<=pd.Timestamp(end_date))]
+if not hourly_earnings_prod_emp_filtered_df.empty:
+    hourly_earnings_sorted = hourly_earnings_prod_emp_filtered_df.sort_values(by='date')
+    st.bar_chart(
+        hourly_earnings_sorted[['yearMonth', 'value']],
+        x="yearMonth",
+        y="value",
+        use_container_width=True
+    )
+else:
+    st.warning("No Hourly Earnings data available for the selected date range.")
 
 
-fig = px.pie(non_farm_bu_cost_filtered_df, names='periodName',
-        color = ['#3357FF','#16A085','#D35400','#BDC3C7'],
-        values='value', title='Non Farm Business Unit Cost')
+st.subheader('Non-Farm Business Unit Cost')
+if not non_farm_bu_cost_filtered_df.empty:
+    fig = px.pie(
+        non_farm_bu_cost_filtered_df,
+        names='periodName',
+        color_discrete_sequence=['#3357FF', '#16A085', '#D35400', '#BDC3C7'],
+        values='value',
+        title='Non-Farm Business Unit Cost'
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.warning("No Non-Farm Business Unit Cost data available for the selected date range.")
 
 
-# Display the chart in Streamlit
-st.plotly_chart(fig)
+
+st.markdown("### Raw Data Pulled From API")
+
+def display_raw_data(df, title):
+    if not df.empty:
+        st.subheader(title)
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning(f"No data available for {title}.")
 
 
-# Raw Data Pulled From API
+display_raw_data(civ_labor_force_filtered[['yearMonth', 'latest', 'value']], 
+                'Civilian Labor Force (Seasonally Adjusted)')
 
-st.subheader('Data Pulled From API : Civilian Labor Force (Seasonally Adjusted)')
+display_raw_data(non_farm_prod_filtered_df[["year", "period", "periodName", "latest", "value", "footnotes"]],
+                'Non-farm Business Productivity')
 
-st.dataframe(civ_labor_force_filtered[['yearMonth','latest','value']],use_container_width=True)
+display_raw_data(non_farm_employment_filtered_df[["year", "period", "periodName", "latest", "value", "footnotes"]],
+                'Non-farm Employment')
 
-st.subheader('Non-farm Business Productivity')
+display_raw_data(civ_employment_filtered_df[["year", "period", "periodName", "latest", "value", "footnotes"]],
+                'Civilian Employment')
 
-st.dataframe(non_farm_prod_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
+display_raw_data(hourly_earnings_prod_emp_filtered_df[["year", "period", "periodName", "latest", "value", "footnotes"]],
+                'Total Private Average Hourly Earnings')
 
-st.subheader('Non-farm Employment')
+display_raw_data(non_farm_bu_cost_filtered_df[["year", "period", "periodName", "latest", "value", "footnotes"]],
+                'Non-Farm Business Unit Cost')
 
-st.dataframe(non_farm_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-st.subheader('Civilian Employement')
-
-st.dataframe(civ_employment_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Total Private Average Hourly Earnings')
-
-st.dataframe(hourly_earnings_prod_emp_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
-
-
-st.subheader('Non Farm Business Unit Cost')
-
-st.dataframe(non_farm_bu_cost_filtered_df[["year","period","periodName","latest","value","footnotes"]],use_container_width=True)
+st.markdown("""
+---
+*Data Source: [U.S. Bureau of Labor Statistics](https://www.bls.gov/data/)*
+""")
