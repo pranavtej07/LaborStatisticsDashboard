@@ -247,22 +247,55 @@ non_farm_employment_filtered_df = non_farm_employment_df.loc[(non_farm_employmen
 col1,col2 = st.columns(2)
 
 with col1:
-
-
-    fig = px.pie(non_farm_prod_filtered_df, names='periodName',
-    color = ['#DAF7A6','#900C3F','#1ABC9C','#7F8C8D'],
-    values='value', title='Quarterwise Non-Farm Productivity')
-
-    # Display the chart in Streamlit
-    st.plotly_chart(fig)
+    # Check if the DataFrame is not empty
+    if not non_farm_prod_filtered_df.empty:
+        # Further check if required columns exist
+        if 'periodName' in non_farm_prod_filtered_df.columns and 'value' in non_farm_prod_filtered_df.columns:
+            # Optionally, check for non-null values
+            if non_farm_prod_filtered_df['periodName'].notnull().all() and non_farm_prod_filtered_df['value'].notnull().all():
+                try:
+                    # Plot the pie chart
+                    fig = px.pie(
+                        non_farm_prod_filtered_df,
+                        names='periodName',
+                        color=['#DAF7A6','#900C3F','#1ABC9C','#7F8C8D'],
+                        values='value',
+                        title='Quarterwise Non-Farm Productivity'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"An error occurred while plotting the pie chart: {e}")
+            else:
+                st.warning("The data contains missing values in 'periodName' or 'value' columns.")
+        else:
+            st.warning("Required columns ('periodName' and 'value') are missing in the data.")
+    else:
+        st.warning("No data available for 'Non-farm Business Productivity' within the selected date range.")
 
 with col2:
-
-
-    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
-
-    st.bar_chart(non_farm_employment_filtered_df, 
-             x="yearMonth", y="value", color="#1ABC9C")
+    # Check if the DataFrame is not empty
+    if not non_farm_employment_filtered_df.empty:
+        # Further check if required columns exist
+        if 'yearMonth' in non_farm_employment_filtered_df.columns and 'value' in non_farm_employment_filtered_df.columns:
+            # Optionally, check for non-null values
+            if non_farm_employment_filtered_df['yearMonth'].notnull().all() and non_farm_employment_filtered_df['value'].notnull().all():
+                try:
+                    st.subheader('Total Nonfarm Employment - Seasonally Adjusted')
+                    st.bar_chart(
+                        non_farm_employment_filtered_df, 
+                        x="yearMonth", 
+                        y="value", 
+                        color="#1ABC9C",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"An error occurred while plotting the bar chart: {e}")
+            else:
+                st.warning("The data contains missing values in 'yearMonth' or 'value' columns.")
+        else:
+            st.warning("Required columns ('yearMonth' and 'value') are missing in the data.")
+    else:
+        st.warning("No data available for 'Total Nonfarm Employment' within the selected date range.")
 
 
 
